@@ -1,0 +1,32 @@
+{
+			"name": "catmos-A",
+			"version": "0.0.1",
+			"description": "",
+			"main": "resources/main.js",
+			"scripts": {
+						"debug": "yarn electron ./resources/main.js",
+						"serv": "yarn shadow-cljs server",
+						"dev": "./node_modules/.bin/shadow-cljs watch main renderer",
+						"build": "./node_modules/.bin/shadow-cljs compile main renderer",
+						"release": "./node_modules/.bin/shadow-cljs release main renderer",
+						"clean": "rm -rf resources/public/js/* && rm -rf target",
+						"pack": "electron-builder --dir",
+						"dist": "electron-builder"
+			},
+			"keywords": [],
+			"author": "",
+			"license": "",
+			"devDependencies": {
+						"electron": "^11.2.1",
+						"electron-builder": "^22.9.1",
+						"shadow-cljs": "^2.2.16",
+						"source-map-support": "^0.5.19"
+			},
+			"dependencies": {
+						"create-react-class": "^15.6.2",
+						"node-ble": "^1.5.0",
+						"react": "^16.2.0",
+						"react-dom": "^16.2.0",
+						"react-flip-move": "^3.0.2"
+			}
+}

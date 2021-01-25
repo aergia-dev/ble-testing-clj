@@ -1,0 +1,8 @@
+*.*~
+node_modules/
+#*.*#
+.shadow-cljs
+resources/main.js
+resources/public/js
+yarn-error.log
+yarn.lock
