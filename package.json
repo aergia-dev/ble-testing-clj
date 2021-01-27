@@ -17,13 +17,13 @@
 			"author": "",
 			"license": "",
 			"devDependencies": {
-						"electron": "^11.2.1",
 						"electron-builder": "^22.9.1",
 						"shadow-cljs": "^2.2.16",
 						"source-map-support": "^0.5.19"
 			},
 			"dependencies": {
 						"create-react-class": "^15.6.2",
+						"electron": "^11.2.1",
 						"node-ble": "^1.5.0",
 						"react": "^16.2.0",
 						"react-dom": "^16.2.0",
