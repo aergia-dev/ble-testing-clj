@@ -4,14 +4,15 @@
             [clojure.string :as str]
             [renderer.ipc :refer [send-ipc]]))
 
-(defn test-btn []
-  [:button {:on-click #(send-ipc {:cmd :test
-                                  :msg "test msg"})}
-   "test btn"])
+(defn btn-device-list []
+  [:button {:on-click #(send-ipc {:cmd :bt
+                                  :msg :scan})}
+   "scan"])
+
 
 (defn ui
   []
   [:div
    [:h1 "clj electron template"]
-   [test-btn]])
+   [btn-device-list]])
 

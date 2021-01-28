@@ -1,8 +1,10 @@
 (ns main.ipc
-  (:require [cljs.core.async :refer [go]]
+  (:require [cljs.core.async :refer [chan]]
             [cljs.core.async.interop :refer-macros [<p!]]
             [main.funcs :refer [obj->clj]]
-            ["node-ble" :refer [createBluetooth]]))
+            [main.ble :as ble]
+            ["node-ble" :refer [createBluetooth]])
+  (:require-macros [cljs.core.async.macros :as m :refer [go go-loop]]))
 
 (def m1 "CF:A1:CB:20:79:18")
 (def m2 "C4:C3:1E:A4:75:1D")
@@ -24,7 +26,6 @@
           bluetooth (get bt "bluetooth")
           destroy (get bt "destroy")
           adapter (<p! (.defaultAdapter bluetooth))]
-
       (try
         (<p! (.startDiscovery adapter))
         (prn (<p! (.devices adapter)))
@@ -38,10 +39,6 @@
             (prn "gatt server" gatt-server)
             (prn "services " (<p! (.services gatt-server)))
             (let [service (<p! (.getPrimaryService gatt-server uuid-1))]
-                  ;; uuid (<p! (.getUUID gatt-service))
-                  ;; character-1 (<p! (.getCharacteristic gatt-service ch-uuid1))
-                  ;; character-2 (<p! (.getCharacteristic gatt-service ch-uuid2))]
-              ;; (prn "uuid" uuid)
               (prn "gatt service")
               (prn "chss." (<p! (.characteristics service)))
               (let [w-ch (<p! (.getCharacteristic service ch-uuid1))
@@ -58,25 +55,6 @@
                   (prn "write" (.from js/Uint8Array ww)))
                 
                 (<p! (.writeValue w-ch (.from js/Buffer (js/Uint8Array. (get cmd :register)))))
-
-                ;; (js/setTimeout #(go (let [r (<p! (.readValue r-ch))]
-                ;;                   (prn r))) 2000)
-                
-                ;; (let [rr  (<p! (.readValue r-ch))]
-                ;;   (prn rr)
-                ;;   (print "read" (.from js/Uint8Array rr)))
-
-                ;; (prn "!!" (js/Uint8Array. (get cmd :test-mode)))
-                ;; (let [wv (.from js/Buffer (js/Uint8Array. (get cmd :test-mode)))];;(.from js/Buffer (js/ArrayBuffer. (get cmd :register)))]
-                ;;   (prn "write value " wv)
-                ;;   (prn "write value " (.values wv))
-                ;;   (<p! (.writeValue ch wv )))
-                
-                ;; (let [r (<p! (.readValue ch))]
-                ;;   (prn "read buffer" r)
-                ;;   (prn "read msg" (.toString r)))
-
-              ;; (.log js/console (str "read"(.toString (<p! (.readValue ch)))))
               
               ;; (<p! (.disconnect dev))
               ;; (destroy)
@@ -87,8 +65,30 @@
             ;; (<p! (.disconnect dev))
             ;; (destroy))))))
 
+(def resp-ch (chan))
 
 (defn receive-ipc [event args]
-  (prn "received ipc" args)
-  (ble-test)
-  (.reply event "fromMain" "well"))
+  (let [all (-> args js->clj)
+        cmd (get all "cmd")
+        msg (get all "msg")
+        resp-fn #(.reply event "fromMain" %)]
+    
+    (condp = cmd
+      "bt" (ble/handler msg resp-fn)
+      {:error "none"})))
+    
+    ;; (go-loop []
+    ;;   (let [resp (<! resp-ch)]
+    ;;     (prn "resp" resp)
+    ;;     (when (not (= resp "fin"))
+    ;;       (.reply event "fromMain" (clj->js resp))
+    ;;       (recur))))))
+
+
+  ;;   (prn "received ipc" m)
+  ;;   (prn "cmd " cmd)
+  ;;   (prn "msg " msg)
+  ;; ;; (ble-test)
+  ;; (ble/device-list)
+  ;; (.reply event "fromMain" "well")))
+
