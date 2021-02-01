@@ -3,6 +3,8 @@
             [cljs.core.async.interop :refer-macros [<p!]]
             [main.funcs :refer [obj->clj]]
             [main.ble :as ble]
+            [main.fs :refer [->log]]
+            ["fs" :as fs]
             ["node-ble" :refer [createBluetooth]])
   (:require-macros [cljs.core.async.macros :as m :refer [go go-loop]]))
 
@@ -69,12 +71,18 @@
 
 (defn receive-ipc [event args]
   (let [all (-> args js->clj)
+        type (get all "type")
         cmd (get all "cmd")
-        msg (get all "msg")
-        resp-fn #(.reply event "fromMain" %)]
-    
-    (condp = cmd
-      "bt" (ble/handler msg resp-fn)
+        info (get all "info")
+        resp-fn (fn [with-log data]
+                  (prn "in main" data)
+                  (prn "with log" with-log)
+                  (when with-log
+                    (->log data))
+                  (.reply event "fromMain" (clj->js data)))]
+    (prn "receive-ipc" all)
+    (condp = type
+      "bt" (ble/handler cmd info resp-fn )
       {:error "none"})))
     
     ;; (go-loop []

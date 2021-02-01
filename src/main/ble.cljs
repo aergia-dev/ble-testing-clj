@@ -1,22 +1,34 @@
 (ns main.ble
-  (:require [cljs.core.async :refer [<! >! take!]]
+  (:require [cljs.core.async :refer [<! >! take! chan go-loop]]
             [cljs.core.async :refer-macros [go alt!]]
             [cljs.core.async.interop :refer-macros [<p!]]
-            
             ["node-ble" :refer [createBluetooth]]
-            [main.log :as log]))
-
-;; (def uuid   "6e400001-b5a3-f393-e0a9-e50e24dcca9e")
-;; (def uuid-write "6e400002-b5a3-f393-e0a9-e50e24dcca9e")
-;; (def uuid-notity "6e400003-b5a3-f393-e0a9-e50e24dcca9e")
-
+            ;; [main.log :as log :refer [->log]]
+            [main.protocol :as protocol]))
 ;; (def config (log/load-config))
 
 (def config {:uuid "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
              :write-uuid "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
              :notify-uuid "6e400003-b5a3-f393-e0a9-e50e24dcca9e"})
+(def filtering-name "Catmos")
 
-  
+
+;;FIX IT.
+(def bt (atom nil))
+(def bt-chan (chan))
+(def notify (chan))
+
+(go-loop []
+  (when-let [b (<! notify)]
+    (prn "notify " b)
+    (prn (protocol/rsp b))
+    ))
+
+(go-loop []
+  (when-let [b (<! bt-chan)]
+    (reset! bt b)))
+
+
 (defn create-bt []
   (go
     (let [bt (js->clj (createBluetooth))
@@ -30,58 +42,139 @@
             (<p! (.startDiscovery adapter))
             {:bluetooth bluetooth
              :adapter adapter
-             :destroy destroy}))
-        (catch js/Object e (prn "catched in create-bt " e))))))
+             :destroy destroy}))))))
 
+(defn init []
+  (go
+    (let [bt (<! (create-bt))]
+      (>! bt-chan bt))))
 
 
 (defn device-list [resp-fn]
   (go
-    (let [{:keys [bluetooth adapter destroy] :as bt} (<! (create-bt))]
-      (if (nil? adapter)
-        (>! resp-ch {:error "adapter is nil"})
-        (do
-          (doseq [mac (<p! (.devices adapter))]
-            (prn "mac " mac)
-            (-> (.waitDevice adapter mac)
-                (.then (fn [dev]
-                         (-> (.getName dev)
-                             (.then (fn [name]
-                                      (go ;;(>! resp-ch {:name name :mac mac})
-                                        (resp-fn (clj->js {:dev {:name name :mac mac}}))
-                                        ;; (prn "then" name)
-                                        (<p! (.disconnect dev)))))
-                             (.catch (fn [err]
-                                       (go ;;(>! resp-ch {:name nil :mac mac})
-                                         (resp-fn (clj->js {:dev {:name nil :mac mac}}))
-                                         ;; (prn "catch" err)
-                                         (<p! (.disconnect dev)))))))))))))))
+    (let [{:keys [bluetooth adapter destroy] :as bt} @bt]
+      (prn (nil? adapter))
+      (when-not (nil? adapter)
+        ;; (resp-ch {:error "adapter is nil"})
+        (doseq [mac (<p! (.devices adapter))]
+          (prn "mac " mac)
+          (-> (.waitDevice adapter mac)
+              (.then (fn [dev]
+                       (-> (.getName dev)
+                           (.then (fn [name]
+                                      (when (clojure.string/includes? name filtering-name)
+                                        (resp-fn false {:cmd "device"
+                                                  :contents {:name name :mac mac}}))))
+                           (.catch (fn [err]  ;;can't read a name.
+                                     )))))))))))
 
 
 (defn battery-info []
   )
 
+(defn normal-data-sync [info resp-fn]
+  (prn "in the normal data-sync")
+  (go
+    (let [{:keys [bluetooth adapter destroy] :as bt} @bt
+          mac (get info "mac")
+          dev (<p! (.waitDevice adapter mac))]
+      (prn "get a dev")
+      (<p! (.disconnect dev))
+      (<p! (.connect dev))
+      (prn "connected")
+      (let [gatt-server (<p! (.gatt dev))
+            service (<p! (.getPrimaryService gatt-server (:uuid config)))
+            w-ch (<p! (.getCharacteristic service (:write-uuid config)))
+            r-ch (<p! (.getCharacteristic service (:notify-uuid config)))]
+        (prn "get a characteristic")
+        (when (false?  (<p! (.isNotifying r-ch)))
+          (<p! (.startNotifications r-ch)))
+        (prn "after noti")
+        (<p! (.writeValue w-ch (protocol/req {:cmd :register})))
+        (let [read (-> (<p! (.readValue r-ch))
+                       (protocol/rsp))]
+          (prn "register " read))
+        (<p! (.writeValue w-ch (protocol/req {:cmd :normal-connection})))
+        (let [read (-> (<p! (.readValue r-ch))
+                       (protocol/rsp))]
+          (if (= 0 (:res read))
+            (resp-fn false {:cmd "normal-connection"
+                            :contents {}
+                            :error "normal connection fail"})
+            (<p! (.writeValue w-ch (protocol/req {:cmd :init-data-sync})))))
+        
+        (let [{:keys [result count]:as all} (-> (<p! (.readValue r-ch))
+                                                (protocol/rsp))]
+          (if (= 1 result)
+            (loop [req-idx 0
+                   acc []]
+              (<p! (.writeValue w-ch (protocol/req {:cmd :read-data :info {:index req-idx}})))
+              (let [{:keys [index timestamp activity] :as read} (-> (<p! (.readValue r-ch))
+                                                                    (protocol/rsp))
+                    sync-resp (-> (<p! (.readValue r-ch))
+                                  (protocol/->byte-array))]
 
-(defn normal-data-sync []
-  )
+                (prn "sync resp: " sync-resp)
+                (if (= req-idx count)
+                  (do
+                     (resp-fn true {:cmd :data-sync
+                                    :contents {:mac mac
+                                               :name (<p! (.getName dev))
+                                               :data acc}}))
+                  (recur (inc req-idx) (conj acc {:index index
+                                                  :timestamp timestamp
+                                                  :activity activity})))))))
+        (prn "disconnect")
+        (<p! (.disconnect dev))))))
 
 
 (defn test-mode []
   )
 
-
-
-(defn handler [msg resp-fn]
-  (prn "ble handler")
-  (prn "msg " msg)
-  ;; (prn "ch " ch)
-   ;; (prn "1"   (device-list resp-ch)
-      ;; (.then (fn [d]
-  ;; (prn "A" d))))
+(defn reset [info resp-fn]
+  (prn "Reset")
+  (prn (get info "mac"))
   (go
-    (condp = msg
-      "scan" (device-list resp-fn)
-      (>! resp-ch {:err "nothing in ble handler"}))))
-  
+  (let [{:keys [bluetooth adapter destroy] :as bt} @bt
+        mac (get info "mac")
+        dev (<p! (.waitDevice adapter mac))]
+    (prn "get a dev")
+    (<p! (.disconnect dev))
+    (<p! (.connect dev))
+    (prn "connected")
+    (let [gatt-server (<p! (.gatt dev))
+          service (<p! (.getPrimaryService gatt-server (:uuid config)))
+          w-ch (<p! (.getCharacteristic service (:write-uuid config)))
+          r-ch (<p! (.getCharacteristic service (:notify-uuid config)))]
+      (when (false?  (<p! (.isNotifying r-ch)))
+        (<p! (.startNotifications r-ch)))
+      (<p! (.writeValue w-ch (protocol/req {:cmd :reset})))
+      (let [read (-> (<p! (.readValue r-ch))
+                     (protocol/rsp))]
+        (resp-fn true {:cmd :reset
+                       :contents {:mac mac
+                                  :name (<p! (.getName dev))
+                                  :content read}}))))))
 
-               
+(defn handler [cmd info resp-fn]
+  (prn "ble handler")
+  (prn "cmd " cmd)
+  (prn "info " info)
+  (go
+    (condp = cmd
+      ;; "conn" (conn resp-fn)
+      "scan" (device-list resp-fn)
+      "data-sync" (normal-data-sync info resp-fn)
+      "reset" (reset info resp-fn)
+      (>! resp-fn {:err "nothing in ble handler"}))))
+
+
+;; (defn write [characteristic cmd]
+;;   (prn "write " cmd)
+;;   (<p! (.writeValue characteristic (protocol/req cmd))))
+
+;; (defn read [characteristic]
+;;   (let [received (-> (<p! (.readValue characteristic))
+;;                      (protocol/rsp))]
+;;     (prn "read " received)
+;;     receivec))

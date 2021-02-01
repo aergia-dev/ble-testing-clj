@@ -6,29 +6,31 @@
 			"scripts": {
 						"debug": "yarn electron ./resources/main.js",
 						"serv": "yarn shadow-cljs server",
-						"dev": "./node_modules/.bin/shadow-cljs watch main renderer",
-						"build": "./node_modules/.bin/shadow-cljs compile main renderer",
-						"release": "./node_modules/.bin/shadow-cljs release main renderer",
+						"dev": "yarn shadow-cljs watch main renderer",
+						"build": "yarn shadow-cljs compile main renderer",
+						"release": "yarn shadow-cljs release main renderer",
 						"clean": "rm -rf resources/public/js/* && rm -rf target",
 						"pack": "electron-builder --dir",
 						"dist": "electron-builder"
 			},
 			"keywords": [],
 			"author": "",
-			"license": "",
-			"devDependencies": {
+			"license": "nil",
+    "devDependencies": {
+	"electron": "^11.2.1",	
 						"electron-builder": "^22.9.1",
 						"shadow-cljs": "^2.2.16",
 						"source-map-support": "^0.5.19"
 			},
 			"dependencies": {
-						"create-react-class": "^15.6.2",
-						"electron": "^11.2.1",
+						"autoprefixer": "^10.2.3",
+						"bulma": "^0.9.2",
 						"highlight.js": "9.18.1",
 						"node-ble": "^1.5.0",
-						"react": "^16.2.0",
-						"react-dom": "^16.2.0",
-						"react-flip-move": "^3.0.2",
-						"react-highlight.js": "1.0.7"
+						"postcss": "^8.2.4",
+						"react": "^17.0.1",
+						"react-dom": "^17.0.1",
+						"react-highlight.js": "1.0.7",
+						"tailwindcss": "^2.0.2"
 			}
 }

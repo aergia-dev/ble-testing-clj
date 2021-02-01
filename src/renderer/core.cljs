@@ -1,5 +1,6 @@
 (ns renderer.core
   (:require [reagent.core :as reagent]
+            [reagent.dom :as rdom]
             [re-frame.core :as rf :refer [dispatch]]
             [clojure.string :as str]  
             [devtools.core :as devtools] 
@@ -14,13 +15,17 @@
 
 ;; -- Entry Point -------------------------------------------------------------*
 
-
-
 (defn ^:export init
   []
   (add-ipc-event)
   (rf/dispatch-sync [:initialize])  
-  (reagent/render [renderer.views/ui]           
+  (rdom/render [renderer.views/ui]           
                   (js/document.getElementById "app-container")))
 
-(init)
+(defn stop []
+  )
+
+(defn start []
+  (prn "re-load")
+  (rf/dispatch-sync [:initialize]))
+
