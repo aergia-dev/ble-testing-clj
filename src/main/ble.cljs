@@ -44,6 +44,7 @@
              :adapter adapter
              :destroy destroy}))))))
 
+
 (defn init []
   (go
     (let [bt (<! (create-bt))]
@@ -72,6 +73,104 @@
 (defn battery-info []
   )
 
+
+(defn connect-dev [info]
+  (go
+    (prn "connect dev")
+    (prn "mac " (get info "mac"))
+    
+    (let [{:keys [bluetooth adapter destroy] :as bt} @bt
+          mac (get info "mac")
+          dev (<p! (.waitDevice adapter mac))]
+      (prn "bring a device")
+      (<p! (.disconnect dev)) ;; maybe...
+      (<p! (.connect dev))
+      (prn "connected in common")
+      (let [gatt-server (<p! (.gatt dev))
+            service (<p! (.getPrimaryService gatt-server (:uuid config)))
+            w-ch (<p! (.getCharacteristic service (:write-uuid config)))
+            r-ch (<p! (.getCharacteristic service (:notify-uuid config)))]
+
+        (when (false?  (<p! (.isNotifying r-ch)))
+          (<p! (.startNotifications r-ch)))
+
+        (prn "fin in common")
+        {:bluetooth bluetooth
+         :adapter adapter
+         :destroy destroy
+         :gatt-server gatt-server
+         :service service
+         :dev dev
+         :mac mac
+         :w-ch w-ch
+         :r-ch r-ch}))))
+
+(def testmode-status (atom false))
+
+(defn test-mode [info resp-fn]
+  (prn "info " info)
+  (go
+  (let [bt (<! (connect-dev info))
+        w-ch (:w-ch bt)
+        r-ch (:r-ch bt)]
+    (prn "A")
+    (<p! (.writeValue w-ch (protocol/req {:cmd :normal-connection})))
+    (let [read (-> (<p! (.readValue r-ch))
+                   (protocol/rsp))]
+      (prn "read " read)
+      (when (= 0 (:res read))
+        (prn "############## enter error"))
+        ;; (resp-fn false {:cmd "normal-connection"
+                        ;; :contents {}
+                        ;; :error "normal connection fail"})))
+    (prn "b")
+        
+    ;; (<p! (.writeValue w-ch (protocol/req {:cmd :register})))
+    ;; (let [read (-> (<p! (.readValue r-ch))
+    ;;                (protocol/rsp))]
+    ;;   (prn "register " read))
+
+    (.on r-ch "valuechanged" (fn [buffer]
+                               (prn " ## changed " (protocol/->byte-array buffer))))
+    
+    (<p! (.writeValue w-ch (protocol/req {:cmd :testmode :info {:testmode-onoff info}})))
+    (let [{:keys [result]} (-> (<p! (.readValue r-ch))
+                               (protocol/rsp))]
+      (prn "enter test mode result " result)
+      (prn @testmode-status))))))
+
+      ;; (when result
+      ;;   (do
+      ;;     (while @testmode-status
+      ;;       (let [read (-> (<p! (.readValue r-ch))
+      ;;                      (protocol/rsp-testmode))]
+      ;;         (prn "read " read)
+      ;;         (prn {:cmd "testmode" :contents {:mac (:mac bt)
+      ;;                                                   :name (<p! (.getName (:dev bt)))
+      ;;                                                   :data read}}))))
+          
+      ;;     (<p! (.writeValue w-ch (protocol/req {:cmd :test-mode :info {:testmode-onoff 0}}))))))))
+      ;; ;; (resp-fn false {:cmd "testmode"
+                     ;; :contents {}
+                     ;; :error "fail to enter testmode"}))))
+
+
+(defn raw-data [info resp-fn]
+  (prn "info " info)
+  (go
+  (let [bt (<! (connect-dev info))
+        w-ch (:w-ch bt)
+        r-ch (:r-ch bt)]
+    (.on r-ch "valuechanged" (fn [buffer]
+                               (prn "changed " (protocol/->byte-array buffer))))
+    
+    (<p! (.writeValue w-ch (protocol/req {:cmd :raw-data-mode :info {:rawdata-onoff info}})))
+    (let [{:keys [result]} (-> (<p! (.readValue r-ch))
+                               (protocol/rsp))]
+      (prn "enter test mode result " result)))))
+
+
+
 (defn normal-data-sync [info resp-fn]
   (prn "in the normal data-sync")
   (go
@@ -89,10 +188,12 @@
         (prn "get a characteristic")
         (when (false?  (<p! (.isNotifying r-ch)))
           (<p! (.startNotifications r-ch)))
+        
         (prn "after noti")
         (<p! (.writeValue w-ch (protocol/req {:cmd :register})))
         (let [read (-> (<p! (.readValue r-ch))
                        (protocol/rsp))]
+          
           (prn "register " read))
         (<p! (.writeValue w-ch (protocol/req {:cmd :normal-connection})))
         (let [read (-> (<p! (.readValue r-ch))
@@ -128,8 +229,6 @@
         (<p! (.disconnect dev))))))
 
 
-(defn test-mode []
-  )
 
 (defn reset [info resp-fn]
   (prn "Reset")
@@ -151,10 +250,10 @@
       (<p! (.writeValue w-ch (protocol/req {:cmd :reset})))
       (let [read (-> (<p! (.readValue r-ch))
                      (protocol/rsp))]
-        (resp-fn true {:cmd :reset
-                       :contents {:mac mac
-                                  :name (<p! (.getName dev))
-                                  :content read}}))))))
+        (resp-fn false {:cmd :reset
+                        :contents {:mac mac
+                                   :name (<p! (.getName dev))
+                                   :content read}}))))))
 
 (defn handler [cmd info resp-fn]
   (prn "ble handler")
@@ -166,6 +265,13 @@
       "scan" (device-list resp-fn)
       "data-sync" (normal-data-sync info resp-fn)
       "reset" (reset info resp-fn)
+      "testmode" (do
+                   (if (= true (get info "testmode-onoff"))
+                     (do
+                       (reset! testmode-status true)
+                       (test-mode info resp-fn))
+                     (reset! testmode-status false)))
+      
       (>! resp-fn {:err "nothing in ble handler"}))))
 
 

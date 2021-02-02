@@ -84,19 +84,13 @@
     (condp = type
       "bt" (ble/handler cmd info resp-fn )
       {:error "none"})))
-    
-    ;; (go-loop []
-    ;;   (let [resp (<! resp-ch)]
-    ;;     (prn "resp" resp)
-    ;;     (when (not (= resp "fin"))
-    ;;       (.reply event "fromMain" (clj->js resp))
-    ;;       (recur))))))
 
 
-  ;;   (prn "received ipc" m)
-  ;;   (prn "cmd " cmd)
-  ;;   (prn "msg " msg)
-  ;; ;; (ble-test)
-  ;; (ble/device-list)
-  ;; (.reply event "fromMain" "well")))
+;;info format
+;;normal connection {:info {:mac "12:23:34:45"}}
+;;test mode {:info {:testmode-onoff "1" or "0"}}
 
+;;resf-fn
+;;(resp-fn false {:cmd "normal-connection"
+;;                :contents {}
+;;                :error "normal connection fail"})

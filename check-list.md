@@ -1,5 +1,6 @@
 
 * Todo
+
   * log file
 	* into csv
 	* change appendFile -> streamWrite
@@ -15,5 +16,14 @@
   * add updating last sync time 
   * add block/release user input
   
-  
+  * build & run in respberry pi. 
+	- option: 
 	
+* list 
+  [ ] normal sync 
+  [ ] reset
+  [ ] test mode
+  [ ] test mode raw data
+  [ ] UI - ignore input when working(comm with main)
+  [ ] toaster 
+  [ ] 

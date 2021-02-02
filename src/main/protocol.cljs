@@ -5,13 +5,17 @@
                  :password {:size 4
                             :type :raw}
                  :index {:size 2}
+                 :testmode-onoff {:size 1}
                  :result {:size 1}
                  :count {:size 2}
                  :activity {:size 2}
                  :mac {:size 6
                        :type :raw}
                  :serial {:size 8
-                          :type :raw}})
+                          :type :raw}
+                 :x {:size 1}
+                 :y {:size 1}
+                 :z {:size 1}})
 
 (def protocol {:register {:req {:cmd [0xA0 0x08]
                                 :sub [:password :timestamp]}
@@ -40,19 +44,34 @@
                :read-data {:req {:cmd [0xC3 0x06]
                                  :sub [:password :index]}
                            :rsp {:cmd [0xD2 0x0C]
-                                 :sub [:password :index :timestamp :activity]}}})
+                                 :sub [:password :index :timestamp :activity]}}
+               :testmode {:req {:cmd [0xE0 0x05]
+                                 :sub [:password :testmode-onoff]}
+                           :rsp {:cmd [0xF0 0x05]
+                                 :sub [:password :result]}
+                           :rsp2 {:cmd [0xF3 0x07]
+                                  :sub [:password :activity :count]}}
+               :raw-data-mode {:req {:cmd [0xE1 0x05]
+                                     :sub [:passowrd :input]}
+                               :rsp {:cmd [0xF0 0x05]
+                                     :sub [:password :result]}
+                               :rsp2 {:cmd [0xF2 0x10]
+                                      :sub [:password :x :y :z]}}})
+
 
 (defn ->buffer [data]
   (.from js/Buffer (js/Uint8Array. data)))
 
-(defn ->byte-array [data]
+(defn ->byte-array [^js/Buffer data]
   (.from js/Uint8Array data))
 
 (defn timestamp []
   (->> (.now js/Date)
        (iterate #(bit-shift-right % 8))
        (take 4)
-       (map #(bit-and 0xff %))))
+       (map #(bit-and 0xff %))
+       reverse))
+  
 
 
 (defn val->byte-array [v sz]
@@ -75,12 +94,14 @@
         acc
         (recur (rest v) (dec cnt) (bit-or acc (bit-shift-left (first v) (* 8 (- cnt 1)))))))))
 
-(defn keyword->val [req k]
+(defn req-keyword->val [req k]
   (condp = k
     :timestamp (timestamp)
     :password [0x30 0x30 0x30 0x30]
     :index (let [idx (get-in req [:info k])]
              (val->byte-array idx (get-in keyword-sz [k :size])))
+    :testmode-onoff (let [onoff (get-in req [:info k])]
+                      (val->byte-array onoff (get-in keyword-sz [k :size])))
     [0x00]
     ))
 
@@ -89,14 +110,14 @@
 (defn req [req]
   (let [{:keys [cmd sub]} (get-in protocol [(:cmd req) :req])
         converting (fn [src]
-                     (reduce (fn [acc byte]
-                               (if (keyword? byte)
-                                 (apply conj acc (keyword->val req byte))
-                                 (conj acc byte))) [] src))]
+                     (reduce (fn [acc k]
+                               (if (keyword? k)
+                                 (apply conj acc {k (req-keyword->val req k)})
+                                 (conj acc k))) [] src))]
     (prn "req " req)
-    (prn "hex: " (f/->hex cmd) (f/->hex (converting sub)))
-    (prn "vals: " (into {} (map (fn [k v] [k v]) sub (converting sub))))
-    (-> (apply conj cmd (converting sub))
+    (prn "hex: " (f/->hex cmd) (converting sub))
+    (prn (apply conj cmd (flatten (map second (converting sub)))))
+    (-> (apply conj cmd (flatten (converting sub)))
         ->buffer)))
 
 
@@ -119,8 +140,8 @@
         (assoc acc (first p) matched)
         (recur remain (rest p) (assoc acc (first p) matched))))))
 
-
 (defn rsp [resp]
+  (prn "11" (.from js/Uint8Array resp))
   (prn "received " (->byte-array resp))
   (let [[cmd sub] (->> resp ->byte-array (split-at 2))
         protocol (first (filter #(= cmd (:cmd %)) (->> (vals protocol)
@@ -134,7 +155,15 @@
       (prn "resp decoded" r)
       r)))
   
- 
+(defn rsp-testmode [resp]
+  (prn "rsp testmode " (->> resp ->byte-array (split-at 2)))
+  (let [[cmd sub] (->> resp ->byte-array (split-at 2))
+        r (-> (resp-decoding sub (get-in protocol [:testmode :rsp2 :sub]))
+              (assoc :cmd cmd))]
+    (prn "test mode decoing " (f/->hex cmd))
+    r))
+    
+  
 (def e [209 7 48 48 48 48 1 0 14])
 
 

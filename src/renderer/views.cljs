@@ -74,6 +74,9 @@
   (let [mode (-> e (.-target) (.-value))]
     (dispatch [:update-mode nm mode])))
 
+(defn toggle-testmode [e]
+  )
+
 (defn device-list []
   (let [dev-lst @(subscribe [:devices])]
     [:div
@@ -101,9 +104,16 @@
                  "normal" [:p {:class "control"}
                            [:button {:class "button is-small"
                                      :on-click #(dispatch [:to-main :data-sync name])} "data sync"]]
-                 "test" [:p {:class "control"}
-                         [:button {:class "button is-small"
-                                   :on-click nil} "test start"]])
+                 "test" [:div
+                         [:p {:class "control"}
+                          [:button {:class "button is-small"
+                                    :on-click #(dispatch [:to-main :testmode-on name])}
+                           "test start"]]
+                         [:p {:class "control"}
+                          [:button {:class "button is-small"
+                                    :on-click #(dispatch [:to-main :testmode-off name])}
+                           "test stop"]]])
+                 
                [:p {:class "control"}
                 [:button {:class "button is-primary is-small"
                           :on-click #(dispatch [:to-main :reset name])}
@@ -115,6 +125,6 @@
   []
   [:div
    [btn-device-list]
-   [device-list]
-   [btn-single-device-cmd]])
+   [device-list]])
+   ;; [btn-single-device-cmd]])
 

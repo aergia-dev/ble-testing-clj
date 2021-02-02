@@ -31,7 +31,17 @@
               (send-ipc {:type :bt
                          :cmd :reset
                          :info {:mac (get-in db [:devices dev-name :mac])}}))
-              
+     :testmode-on (do
+                    (send-ipc {:type :bt
+                               :cmd :testmode
+                               :info {:mac (get-in db [:devices dev-name :mac])
+                                      :testmode-onoff true}}))
+     :testmode-off (do
+                    (send-ipc {:type :bt
+                               :cmd :testmode
+                               :info {:mac (get-in db [:devices dev-name :mac])
+                                      :testmode-onoff false}}))
+
      db)))
              
 
@@ -45,6 +55,7 @@
                   (assoc-in db [:devices name] {:latest-sync "not once"
                                                 :active false
                                                 :mode "normal"
+                                                :testmode false
                                                 :mac mac}))
        "data-sync" (do
                      (prn cmd)
