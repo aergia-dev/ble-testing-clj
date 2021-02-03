@@ -63,7 +63,7 @@
     [:button {:class "button is-primary is-small"
               :on-click #(dispatch [:to-main :raw-data-mode])}
      "raw data mode"]]])
-   
+
 
 
 (defn checkbox-onchange [e nm]
@@ -83,48 +83,59 @@
      (when (not (empty? dev-lst))
        (for [dev dev-lst]
          (let [[name {:keys [latest-sync active mode mac]}] dev]
-             [:div {:class "container"
-                    :key (str "div-k-" name)}
-              [:label {:class "checkbox"}
-               [:input {:type "checkbox"
-                        :on-change #(checkbox-onchange % name)
-                        :key (str "key-" name)
-                        :name (str  "-checkbox")}]
-               (str name "  " mac "  " latest-sync)]
+           [:div {:class "container"
+                  :key (str "div-k-" name)}
+            [:label {:class "checkbox"}
+             [:input {:type "checkbox"
+                      :on-change #(checkbox-onchange % name)
+                      :key (str "key-" name)
+                      :name (str  "-checkbox")}]
+             (str name "  " mac "  " latest-sync)]
+            
+            [:div {:class "field is-grouped"}
+             [:div {:class "select is-small"}
+              [:select {:name "mode"
+                        :id "id-mode"
+                        :defaultValue mode
+                        :on-change #(select-onchange % name)}
+               [:option "normal"]
+               [:option "test"]
+               [:option "raw"]]]
+              (condp = mode
+                "normal" [:p {:class "control"}
+                          [:button {:class "button is-small"
+                                    :on-click #(dispatch [:to-main :data-sync name])} "data sync"]]
+                "test" [:div
+                        [:p {:class "control"}
+                         [:button {:class "button is-small"
+                                   :on-click #(dispatch [:to-main :test-on name])}
+                          "test start"]]
+                        [:p {:class "control"}
+                         [:button {:class "button is-small"
+                                   :on-click #(dispatch [:to-main :test-off name])}
+                          "test stop"]]]
+                
+                "raw" [:div
+                       [:p {:class "control"}
+                        [:button {:class "button is-small"
+                                  :on-click #(dispatch [:to-main :raw-on name])}
+                         "raw start"]]
+                       [:p {:class "control"}
+                        [:button {:class "button is-small"
+                                  :on-click #(dispatch [:to-main :raw-off name])}
+                         "raw stop"]]])
               
-              [:div {:class "field is-grouped"}
-                [:div {:class "select is-small"}
-                 [:select {:name "mode"
-                           :id "id-mode"
-                           :defaultValue mode
-                           :on-change #(select-onchange % name)}
-                  [:option "normal"]
-                  [:option "test"]]]
-               (condp = mode
-                 "normal" [:p {:class "control"}
-                           [:button {:class "button is-small"
-                                     :on-click #(dispatch [:to-main :data-sync name])} "data sync"]]
-                 "test" [:div
-                         [:p {:class "control"}
-                          [:button {:class "button is-small"
-                                    :on-click #(dispatch [:to-main :testmode-on name])}
-                           "test start"]]
-                         [:p {:class "control"}
-                          [:button {:class "button is-small"
-                                    :on-click #(dispatch [:to-main :testmode-off name])}
-                           "test stop"]]])
-                 
-               [:p {:class "control"}
-                [:button {:class "button is-primary is-small"
-                          :on-click #(dispatch [:to-main :reset name])}
-                 "reset"]]]])
-           ))]))
+              [:p {:class "control"}
+               [:button {:class "button is-primary is-small"
+                         :on-click #(dispatch [:to-main :reset name])}
+                "reset"]]]])))]))
 
-     
+
+
 (defn ui
   []
   [:div
    [btn-device-list]
    [device-list]])
-   ;; [btn-single-device-cmd]])
+;; [btn-single-device-cmd]])
 

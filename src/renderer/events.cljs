@@ -35,12 +35,23 @@
                     (send-ipc {:type :bt
                                :cmd :testmode
                                :info {:mac (get-in db [:devices dev-name :mac])
-                                      :testmode-onoff true}}))
+                                      :testmode-onoff 1}}))
      :testmode-off (do
                     (send-ipc {:type :bt
                                :cmd :testmode
                                :info {:mac (get-in db [:devices dev-name :mac])
-                                      :testmode-onoff false}}))
+                                      :testmode-onoff 0}}))
+
+     :raw-on (do
+                    (send-ipc {:type :bt
+                               :cmd :rawmode
+                               :info {:mac (get-in db [:devices dev-name :mac])
+                                      :raw-onoff 1}}))
+     :raw-off (do
+                    (send-ipc {:type :bt
+                               :cmd :rawmode
+                               :info {:mac (get-in db [:devices dev-name :mac])
+                                      :raw-onoff 0}}))
 
      db)))
              
@@ -60,6 +71,8 @@
        "data-sync" (do
                      (prn cmd)
                      (prn contents))
+       "rawmode-off" (do
+                       (prn "raw mode off"))
        db))))
 
 

@@ -6,6 +6,7 @@
                             :type :raw}
                  :index {:size 2}
                  :testmode-onoff {:size 1}
+                 :rawmode-onoff {:size 1}
                  :result {:size 1}
                  :count {:size 2}
                  :activity {:size 2}
@@ -13,9 +14,12 @@
                        :type :raw}
                  :serial {:size 8
                           :type :raw}
-                 :x {:size 1}
-                 :y {:size 1}
-                 :z {:size 1}})
+                 :x {:size 4
+                     :type :float}
+                 :y {:size 1
+                     :type :float}
+                 :z {:size 1
+                     :type :float}})
 
 (def protocol {:register {:req {:cmd [0xA0 0x08]
                                 :sub [:password :timestamp]}
@@ -52,7 +56,7 @@
                            :rsp2 {:cmd [0xF3 0x07]
                                   :sub [:password :activity :count]}}
                :raw-data-mode {:req {:cmd [0xE1 0x05]
-                                     :sub [:passowrd :input]}
+                                     :sub [:password :rawmode-onoff]}
                                :rsp {:cmd [0xF0 0x05]
                                      :sub [:password :result]}
                                :rsp2 {:cmd [0xF2 0x10]
@@ -62,17 +66,16 @@
 (defn ->buffer [data]
   (.from js/Buffer (js/Uint8Array. data)))
 
-(defn ->byte-array [^js/Buffer data]
+(defn ->byte-array [data]
   (.from js/Uint8Array data))
 
 (defn timestamp []
-  (->> (.now js/Date)
+  (->> (/ (.now js/Date) 1000)
        (iterate #(bit-shift-right % 8))
        (take 4)
        (map #(bit-and 0xff %))
        reverse))
   
-
 
 (defn val->byte-array [v sz]
   (->> v
@@ -81,18 +84,33 @@
        (map #(bit-and 0xff %))
        reverse))
 
+(defn ts-locale-fmt [v]
+  ;; (let [date (js/Date. (* v 1000))]
+    ;; {:year (.getFullYear date)
+    ;;  :month (->> (.getMonth date)
+    ;;              (get ["Jan" "Feb" "Mar" "Apr" "May" "Jun" "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"]))
+    ;;  :day (.getDate date)
+    ;;  :hour (.getHours date)
+    ;;  :min (.getMinutes date)
+  ;;  :sec (.getSeconds date)}))
+  ;; (prn "timestamp " v)
+  (.toLocaleString (js/Date. (* 1000 v))))
+
 ;;big endian order
 (defn byte-array->val [data k]
   ;; (prn "byte-array->val ")
-  ;; (prn k)
-  (if (= :raw (get-in keyword-sz [k :type]))
-    data
-    (loop [v data
-           cnt (count data)
-           acc 0] 
-      (if (zero? cnt)
-        acc
-        (recur (rest v) (dec cnt) (bit-or acc (bit-shift-left (first v) (* 8 (- cnt 1)))))))))
+  (let [val (if (= :raw (get-in keyword-sz [k :type]))
+              data
+              (loop [v data
+                     cnt (count data)
+                     acc 0] 
+                (if (zero? cnt)
+                  acc
+                  (recur (rest v) (dec cnt) (bit-or acc (bit-shift-left (first v) (* 8 (- cnt 1))))))))]
+    (condp = k
+      :timestamp (ts-locale-fmt val)
+      val)))
+
 
 (defn req-keyword->val [req k]
   (condp = k
@@ -102,6 +120,9 @@
              (val->byte-array idx (get-in keyword-sz [k :size])))
     :testmode-onoff (let [onoff (get-in req [:info k])]
                       (val->byte-array onoff (get-in keyword-sz [k :size])))
+    :rawmode-onoff (let [onoff (get-in req [:info k])]
+                      (val->byte-array onoff (get-in keyword-sz [k :size])))
+    
     [0x00]
     ))
 
@@ -113,12 +134,16 @@
                      (reduce (fn [acc k]
                                (if (keyword? k)
                                  (apply conj acc {k (req-keyword->val req k)})
-                                 (conj acc k))) [] src))]
+                                 (conj acc k))) [] src))
+        v (apply conj cmd (flatten (map second (converting sub))))]
     (prn "req " req)
     (prn "hex: " (f/->hex cmd) (converting sub))
-    (prn (apply conj cmd (flatten (map second (converting sub)))))
-    (-> (apply conj cmd (flatten (converting sub)))
+    (prn "dec: " v)
+    (-> (apply conj cmd (flatten (map second (converting sub)))) ;;(apply conj cmd (flatten (converting sub)))
         ->buffer)))
+
+
+
 
 
 ;;FIXIT ;;password should be raw. not convert.
@@ -141,7 +166,6 @@
         (recur remain (rest p) (assoc acc (first p) matched))))))
 
 (defn rsp [resp]
-  (prn "11" (.from js/Uint8Array resp))
   (prn "received " (->byte-array resp))
   (let [[cmd sub] (->> resp ->byte-array (split-at 2))
         protocol (first (filter #(= cmd (:cmd %)) (->> (vals protocol)
@@ -162,7 +186,15 @@
               (assoc :cmd cmd))]
     (prn "test mode decoing " (f/->hex cmd))
     r))
-    
+
+(defn rsp-rawmode [resp]
+  (prn "rsp testmode " (->> resp ->byte-array (split-at 2)))
+  (let [[cmd sub] (->> resp ->byte-array (split-at 2))
+        r (-> (resp-decoding sub (get-in protocol [:raw-data-mode :rsp2 :sub]))
+              (assoc :cmd cmd))]
+    (prn "test mode decoing " (f/->hex cmd))
+    r))
+
   
 (def e [209 7 48 48 48 48 1 0 14])
 

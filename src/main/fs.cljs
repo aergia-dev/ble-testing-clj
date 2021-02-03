@@ -7,25 +7,33 @@
 
 (def log (chan))
 
-(go-loop []
-  (when-let [contents (<! log)]
-    (let [c (get contents :contents)
-          filename (str (:name c) "-" (:mac c) ".txt")]
-      (prn "in log " contents)
-      (prn c)
-      (prn "filename" filename)
-      (.appendFile fs filename (:data c) (fn [err]
-                                      (do
-                                        (prn "error in saving a log")
-                                        (prn err)
-                                        ;; (append f err "log-err.txt" (fn [err]
-                                                                       ))))
-    (recur)))
-  
+(defn map->csv [m]
+  (let [k (keys m)
+        v (vals m)
+        converted (->> (interleave (map name k) v)
+                       (clojure.string/join ","))]
+    (str converted ",\r\n")))
 
-(defn ->log [l]
+
+(go-loop []
+  (when-let [log (<! log)]
+    (let [{:keys [filename contents]} log]
+      (prn "#### " log)
+      ;; (prn "contents " contents)
+      (.appendFile fs filename contents (fn [err]
+                                          ))
+      (recur))))
+
+   
+(defn ->log [{:keys [type name mac contents]}]
   (go
-    (>! log l)))
+    (let [l (condp = type
+              :normal-data {:filename (str name "-" mac ".csv") 
+                            :contents (map->csv (dissoc contents :password :cmd))}
+              :rawmode-data {:filename (str "raw-" name "-" mac ".csv")
+                             :contents (map->csv contents)}
+              v)]
+    (>! log l))))
 
 
     

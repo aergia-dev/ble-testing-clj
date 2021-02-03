@@ -77,12 +77,12 @@
         resp-fn (fn [with-log data]
                   (prn "in main" data)
                   (prn "with log" with-log)
-                  (when with-log
-                    (->log data))
+                  ;; (when with-log
+                    ;; (->log data))
                   (.reply event "fromMain" (clj->js data)))]
     (prn "receive-ipc" all)
     (condp = type
-      "bt" (ble/handler cmd info resp-fn )
+      "bt" (ble/handler cmd info ->log resp-fn )
       {:error "none"})))
 
 
