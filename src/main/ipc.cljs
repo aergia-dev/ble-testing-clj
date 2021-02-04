@@ -75,8 +75,10 @@
         cmd (get all "cmd")
         info (get all "info")
         resp-fn (fn [with-log data]
-                  (prn "in main" data)
-                  (prn "with log" with-log)
+                  (let [{:keys [name normal-data]} (:contents data)]
+                    (doseq [data normal-data]
+                      (println data)))
+                  ;; (prn "with log" with-log)
                   ;; (when with-log
                     ;; (->log data))
                   (.reply event "fromMain" (clj->js data)))]

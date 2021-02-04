@@ -18,7 +18,7 @@
 (go-loop []
   (when-let [log (<! log)]
     (let [{:keys [filename contents]} log]
-      (prn "#### " log)
+      ;; (prn "#### " log)
       ;; (prn "contents " contents)
       (.appendFile fs filename contents (fn [err]
                                           ))

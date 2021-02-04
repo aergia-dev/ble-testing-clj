@@ -82,7 +82,7 @@
     [:div
      (when (not (empty? dev-lst))
        (for [dev dev-lst]
-         (let [[name {:keys [latest-sync active mode mac]}] dev]
+         (let [[name {:keys [latest-sync active mode mac normal-data-sync]}] dev]
            [:div {:class "container"
                   :key (str "div-k-" name)}
             [:label {:class "checkbox"}
@@ -103,11 +103,14 @@
                [:option "raw"]]]
               (condp = mode
                 "normal" [:p {:class "control"}
-                          [:button {:class "button is-small"
-                                    :on-click #(dispatch [:to-main :data-sync name])} "data sync"]]
+                          [:button {:class (str "button is-small "
+                                                (when normal-data-sync
+                                                  "is-loading"))
+                                    :on-click #(dispatch [:to-main :data-sync name])}
+                           "data sync"]]
                 "test" [:div
                         [:p {:class "control"}
-                         [:button {:class "button is-small"
+                         [:button {:class (str "button is-small")
                                    :on-click #(dispatch [:to-main :test-on name])}
                           "test start"]]
                         [:p {:class "control"}

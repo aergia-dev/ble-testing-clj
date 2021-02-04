@@ -1,5 +1,5 @@
 (ns renderer.events
-  (:require [re-frame.core  :as rf :refer [reg-event-db reg-event-fx inject-cofx path after]]
+  (:require [re-frame.core  :as rf :refer [reg-event-db reg-event-fx inject-cofx path after dispatch]]
             [cljs.spec.alpha :as s]
             [renderer.ipc :refer [send-ipc]]
             [renderer.funcs :as f]))
@@ -14,6 +14,11 @@
    {:devices {}}))
 
 (reg-event-db
+ :update-status
+ (fn [db [_ dev-name k v]]
+   (assoc-in db [:devices dev-name k] v)))
+             
+(reg-event-db
  :to-main
  (fn [db [_ cmd dev-name]]
    (prn cmd)
@@ -26,7 +31,8 @@
      :data-sync (do
                   (send-ipc {:type :bt
                              :cmd :data-sync
-                             :info {:mac (get-in db [:devices dev-name :mac])}}))
+                             :info {:mac (get-in db [:devices dev-name :mac])}})
+                  (dispatch [:update-status dev-name :normal-data-sync true]))
      :reset (do
               (send-ipc {:type :bt
                          :cmd :reset
@@ -66,11 +72,12 @@
                   (assoc-in db [:devices name] {:latest-sync "not once"
                                                 :active false
                                                 :mode "normal"
+                                                :normal-data-sync false
                                                 :testmode false
                                                 :mac mac}))
        "data-sync" (do
-                     (prn cmd)
-                     (prn contents))
+                     (let [{:keys [mac name normal-data]} contents]
+                       (dispatch [:update-status name :normal-data-sync false])))
        "rawmode-off" (do
                        (prn "raw mode off"))
        db))))

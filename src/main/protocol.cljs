@@ -15,11 +15,11 @@
                  :serial {:size 8
                           :type :raw}
                  :x {:size 4
-                     :type :float}
-                 :y {:size 1
-                     :type :float}
-                 :z {:size 1
-                     :type :float}})
+                     :type :raw}
+                 :y {:size 4
+                     :type :raw}
+                 :z {:size 4
+                     :type :raw}})
 
 (def protocol {:register {:req {:cmd [0xA0 0x08]
                                 :sub [:password :timestamp]}
@@ -96,6 +96,12 @@
   ;; (prn "timestamp " v)
   (.toLocaleString (js/Date. (* 1000 v))))
 
+(defn ->float [val]
+  ;; (prn "float " val)
+  (-> (.from js/Buffer (js/Uint8Array. val))
+      (.readFloatBE 0)
+      (.toFixed 2)))
+
 ;;big endian order
 (defn byte-array->val [data k]
   ;; (prn "byte-array->val ")
@@ -109,6 +115,9 @@
                   (recur (rest v) (dec cnt) (bit-or acc (bit-shift-left (first v) (* 8 (- cnt 1))))))))]
     (condp = k
       :timestamp (ts-locale-fmt val)
+      :x (->float val)
+      :y (->float val)
+      :z (->float val)
       val)))
 
 
@@ -136,20 +145,19 @@
                                  (apply conj acc {k (req-keyword->val req k)})
                                  (conj acc k))) [] src))
         v (apply conj cmd (flatten (map second (converting sub))))]
-    (prn "req " req)
-    (prn "hex: " (f/->hex cmd) (converting sub))
-    (prn "dec: " v)
+
+    (prn "req: " (:cmd req) (f/->hex cmd) (converting sub))
+    ;; (prn "dec: " v)
+    
     (-> (apply conj cmd (flatten (map second (converting sub)))) ;;(apply conj cmd (flatten (converting sub)))
         ->buffer)))
-
-
 
 
 
 ;;FIXIT ;;password should be raw. not convert.
 (defn extract [data k]
   ;; (prn "extract")
-  ;; (prn k)
+  ;; (prn k data)
   (let [[cur remain] (split-at (get-in keyword-sz [k :size]) data)
         val (byte-array->val cur k)]
     ;; (prn "key: " k " val: " val)
@@ -166,14 +174,15 @@
         (recur remain (rest p) (assoc acc (first p) matched))))))
 
 (defn rsp [resp]
-  (prn "received " (->byte-array resp))
+  ;; (prn "received " (->byte-array resp))
   (let [[cmd sub] (->> resp ->byte-array (split-at 2))
         protocol (first (filter #(= cmd (:cmd %)) (->> (vals protocol)
                                                        (map #(-> % :rsp)))))]
-    ;; (prn "cmd" cmd)
+    ;; (prn "cmd" cmd sub)
     ;; (prn "sub " sub)
     ;; (prn "pro" protocol)
     ;; (prn (:sub protocol))
+    (prn "resp: " (f/->hex cmd) (f/->hex sub))
     (let [r (-> (resp-decoding sub (:sub protocol))
                 (assoc :cmd cmd))]
       (prn "resp decoded" r)
@@ -188,11 +197,11 @@
     r))
 
 (defn rsp-rawmode [resp]
-  (prn "rsp testmode " (->> resp ->byte-array (split-at 2)))
+  ;; (prn "rsp testmode " (->> resp ->byte-array (split-at 2)))
   (let [[cmd sub] (->> resp ->byte-array (split-at 2))
         r (-> (resp-decoding sub (get-in protocol [:raw-data-mode :rsp2 :sub]))
               (assoc :cmd cmd))]
-    (prn "test mode decoing " (f/->hex cmd))
+    ;; (prn "test mode decoing " (f/->hex cmd))
     r))
 
   
